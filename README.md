@@ -286,3 +286,141 @@ systemctl restart nagios-nrpe-server
 | ![Nagios Hosts](nagios_hosts.png) | ![Nagios Services](nagios_services.png) |
 
 ---
+
+
+---
+
+
+### ***Important
+
+## NRPE Setup & Configuration (on Both Servers)
+
+The **Nagios Remote Plugin Executor (NRPE)** is installed and configured on **both EC2 instances** —
+the **Web Server** (monitored node) and the **Monitoring Server** (Nagios host) — to enable remote system health checks.
+
+---
+
+### Web Server (Monitored Node)
+
+**File:** `userdata_web.sh`
+
+#### NRPE Installation
+
+```bash
+apt-get install -y nagios-nrpe-server nagios-plugins
+```
+
+This installs:
+
+* `nagios-nrpe-server`: NRPE daemon that listens on port **5666**
+* `nagios-plugins`: Standard Nagios system check commands
+
+#### NRPE Configuration
+
+```bash
+sed -i "s/^allowed_hosts=.*/allowed_hosts=127.0.0.1,${monitoring_ip}/" /etc/nagios/nrpe.cfg
+```
+
+This line allows the **Monitoring Server’s private IP** to communicate with the NRPE agent.
+
+#### Plugin Commands Defined
+
+```bash
+cat <<EOF > /etc/nagios/nrpe_local.cfg
+command[check_users]=/usr/lib/nagios/plugins/check_users -w 5 -c 10
+command[check_load]=/usr/lib/nagios/plugins/check_load -w 5.0,4.0,3.0 -c 10.0,6.0,4.0
+command[check_hda1]=/usr/lib/nagios/plugins/check_disk -w 20% -c 10% -p /
+command[check_total_procs]=/usr/lib/nagios/plugins/check_procs -w 150 -c 250
+command[check_zombie_procs]=/usr/lib/nagios/plugins/check_procs -w 5 -c 10 -s Z
+EOF
+```
+
+These are the **commands Nagios executes remotely** through NRPE to check system health metrics such as:
+
+* Logged-in users
+* System load
+* Disk utilization
+* Running and zombie processes
+
+#### NRPE Service Activation
+
+```bash
+systemctl enable nagios-nrpe-server
+systemctl restart nagios-nrpe-server
+```
+
+This ensures NRPE runs automatically and starts listening on port **5666**.
+
+---
+
+### Monitoring Server (Nagios Host)
+
+**File:** `userdata_monitoring.tpl`
+
+#### NRPE Installation
+
+```bash
+apt-get install -y docker.io nagios-nrpe-server nagios-plugins apache2-utils unzip curl
+```
+
+Even though Nagios runs inside Docker, the **host EC2** also installs NRPE for **self-monitoring** and internal health checks.
+
+#### NRPE Configuration
+
+```bash
+sed -i "s/^allowed_hosts=.*/allowed_hosts=127.0.0.1,${web_private_ip},172.31.0.0\/16/" /etc/nagios/nrpe.cfg
+```
+
+This configuration allows:
+
+* `127.0.0.1` → Local Nagios Docker container
+* `${web_private_ip}` → Web server’s private IP
+* `172.31.0.0/16` → Entire VPC CIDR (optional flexibility)
+
+#### NRPE Service Activation
+
+```bash
+systemctl enable nagios-nrpe-server
+systemctl restart nagios-nrpe-server
+```
+
+---
+
+### ⚠️ **Important Notes**
+
+* **Both servers** must have NRPE service **running on port 5666**.
+  You can verify it using:
+
+  ```bash
+  sudo netstat -tulnp | grep nrpe
+  ```
+
+  or
+
+  ```bash
+  sudo ss -tulnp | grep nrpe
+  ```
+
+* On the **Monitoring Server**, Nagios uses `check_nrpe` command to connect to the Web Server:
+
+  ```bash
+  /opt/nagios/libexec/check_nrpe -H <web_private_ip> -c check_load
+  ```
+
+* All **remote checks** rely on correct configuration of:
+
+  * `allowed_hosts` parameter in `/etc/nagios/nrpe.cfg`
+  * NRPE port **5666** open in the **security group**
+
+* NRPE ensures **secure, controlled execution** of monitoring commands on remote hosts without requiring SSH.
+
+---
+
+### Summary Table
+
+| Server                | Package Installed                      | Purpose                            | Config File(s)                                       |
+| :-------------------- | :------------------------------------- | :--------------------------------- | :--------------------------------------------------- |
+| **Monitoring Server** | `nagios-nrpe-server`, `nagios-plugins` | Self-monitoring + NRPE tests       | `/etc/nagios/nrpe.cfg`                               |
+| **Web Server**        | `nagios-nrpe-server`, `nagios-plugins` | Respond to NRPE checks from Nagios | `/etc/nagios/nrpe.cfg`, `/etc/nagios/nrpe_local.cfg` |
+
+---
