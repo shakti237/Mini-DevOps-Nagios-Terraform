@@ -37,11 +37,14 @@ Mini-DevOps-Nagios-Terraform/
 ├── userdata_monitoring.tpl     # Monitoring server bootstrap script (with template variables)
 │
 ├── outputs.tf                  # Output public/private IPs
-├── architecture.png             # Architecture diagram
+├── terraform.tfvars            # Variable values for Terraform
 │
-└── screenshots/
-    ├── nagios_hosts.png        # Nagios Hosts Dashboard
-    └── nagios_services.png     # Nagios Services Dashboard
+├── architecture.png            # Architecture diagram
+├── nagios_hosts.png            # Nagios Hosts Dashboard
+├── nagios_services.png         # Nagios Services Dashboard
+│
+└── README.md                   # Project documentation
+
 ```
 
 ---
@@ -280,6 +283,6 @@ systemctl restart nagios-nrpe-server
 
 | Hosts Dashboard                               | Services Dashboard                                  |
 | --------------------------------------------- | --------------------------------------------------- |
-| ![Nagios Hosts](screenshots/nagios_hosts.png) | ![Nagios Services](screenshots/nagios_services.png) |
+| ![Nagios Hosts](nagios_hosts.png) | ![Nagios Services](nagios_services.png) |
 
 ---
